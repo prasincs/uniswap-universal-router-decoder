@@ -2,7 +2,7 @@
 use alloy_primitives::{Bytes, TxHash, U256};
 use alloy_consensus::transaction::Transaction;
 use alloy_provider::Provider;
-use alloy_sol_types::SolCall;
+use alloy_sol_types::{SolCall, sol};
 use serde_json::json;
 
 use crate::constants::RouterCommands;
@@ -10,6 +10,12 @@ use crate::enums::{RouterConstants, RouterFunction, V4Actions};
 use crate::error::{Result, RouterError};
 use crate::types::*;
 use crate::v3_path;
+
+// Define execute functions for proper ABI decoding
+sol! {
+    function execute(bytes commands, bytes[] inputs);
+    function execute(bytes commands, bytes[] inputs, uint256 deadline);
+}
 
 /// Main decoder for Universal Router transactions
 pub struct Decoder<P> {
@@ -69,8 +75,10 @@ impl<P> Decoder<P> {
         }
 
         // Function selectors for execute functions
-        const EXECUTE_WITH_DEADLINE: [u8; 4] = [0x24, 0x85, 0x6b, 0xc3];
-        const EXECUTE_NO_DEADLINE: [u8; 4] = [0x24, 0x85, 0x6b, 0xc5];
+        // execute(bytes,bytes[]) = 0x24856bc3
+        const EXECUTE_NO_DEADLINE: [u8; 4] = [0x24, 0x85, 0x6b, 0xc3];
+        // execute(bytes,bytes[],uint256) = 0x3593564c
+        const EXECUTE_WITH_DEADLINE: [u8; 4] = [0x35, 0x93, 0x56, 0x4c];
 
         let selector = &input[0..4];
 
@@ -100,41 +108,20 @@ impl<P> Decoder<P> {
 
     /// Manually decode execute(bytes, bytes[], uint256)
     fn decode_execute_with_deadline(&self, input: &Bytes) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
-        use alloy_sol_types::SolType;
+        // Use the generated sol! type
+        let call = execute_1Call::abi_decode(input, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute(bytes,bytes[],uint256): {}", e)))?;
 
-        // Skip 4-byte selector
-        let data = &input[4..];
-
-        // Decode as (bytes, bytes[], uint256)
-        type ExecuteParams = (
-            alloy_sol_types::sol_data::Bytes,
-            alloy_sol_types::sol_data::Array<alloy_sol_types::sol_data::Bytes>,
-            alloy_sol_types::sol_data::Uint<256>,
-        );
-
-        let (commands, inputs, deadline) = ExecuteParams::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute: {}", e)))?;
-
-        Ok((commands, inputs, Some(deadline)))
+        Ok((call.commands, call.inputs, Some(call.deadline)))
     }
 
     /// Manually decode execute(bytes, bytes[])
     fn decode_execute_no_deadline(&self, input: &Bytes) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
-        use alloy_sol_types::SolType;
+        // Use the generated sol! type
+        let call = execute_0Call::abi_decode(input, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute(bytes,bytes[]): {}", e)))?;
 
-        // Skip 4-byte selector
-        let data = &input[4..];
-
-        // Decode as (bytes, bytes[])
-        type ExecuteParams = (
-            alloy_sol_types::sol_data::Bytes,
-            alloy_sol_types::sol_data::Array<alloy_sol_types::sol_data::Bytes>,
-        );
-
-        let (commands, inputs) = ExecuteParams::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute: {}", e)))?;
-
-        Ok((commands, inputs, None))
+        Ok((call.commands, call.inputs, None))
     }
 
     /// Decode commands and their inputs

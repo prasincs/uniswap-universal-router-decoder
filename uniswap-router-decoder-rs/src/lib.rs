@@ -58,7 +58,7 @@ pub mod v3_path;
 pub use decoder::Decoder;
 pub use enums::{RouterFunction, V4Actions, RouterConstants, V4Constants, FunctionRecipient, TransactionSpeed};
 pub use error::{Result, RouterError};
-pub use types::*;
+pub use types::*;  // This includes CommandInput
 pub use constants::Addresses;
 pub use v3_path::{decode_v3_path, encode_v3_path, extract_tokens, extract_fees};
 
