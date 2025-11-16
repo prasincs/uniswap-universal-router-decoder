@@ -1,0 +1,26 @@
+# Dockerfile for running Python decoder in isolation
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python project
+COPY pyproject.toml ./
+COPY uniswap_universal_router_decoder/ ./uniswap_universal_router_decoder/
+
+# Install dependencies
+RUN pip install --no-cache-dir -e .
+
+# Copy test script
+COPY test_harness/python_decoder_runner.py ./
+
+# Set environment variable for RPC endpoint (to be passed at runtime)
+ENV RPC_ENDPOINT=""
+
+# Run the decoder script
+ENTRYPOINT ["python", "python_decoder_runner.py"]
