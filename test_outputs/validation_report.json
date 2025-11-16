@@ -1,0 +1,60 @@
+{
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "errors": 0
+  },
+  "by_command": {
+    "PAY_PORTION": {
+      "passed": 1,
+      "failed": 0,
+      "errors": 0
+    },
+    "PERMIT2_PERMIT": {
+      "passed": 1,
+      "failed": 0,
+      "errors": 0
+    },
+    "UNWRAP_WETH": {
+      "passed": 1,
+      "failed": 0,
+      "errors": 0
+    },
+    "V2_SWAP_EXACT_IN": {
+      "passed": 1,
+      "failed": 0,
+      "errors": 0
+    }
+  },
+  "results": {
+    "passed": [
+      {
+        "tx_hash": "0x_test_transaction_1",
+        "command_type": "PAY_PORTION",
+        "status": "passed",
+        "num_commands": 4
+      },
+      {
+        "tx_hash": "0x_test_transaction_1",
+        "command_type": "PERMIT2_PERMIT",
+        "status": "passed",
+        "num_commands": 4
+      },
+      {
+        "tx_hash": "0x_test_transaction_1",
+        "command_type": "UNWRAP_WETH",
+        "status": "passed",
+        "num_commands": 4
+      },
+      {
+        "tx_hash": "0x_test_transaction_1",
+        "command_type": "V2_SWAP_EXACT_IN",
+        "status": "passed",
+        "num_commands": 4
+      }
+    ],
+    "failed": [],
+    "errors": []
+  }
+}
