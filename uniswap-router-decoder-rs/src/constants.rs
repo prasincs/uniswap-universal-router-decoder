@@ -158,7 +158,7 @@ sol! {
 sol! {
     #[sol(rpc)]
     contract PositionManager {
-        function initializePool(PoolManager.PoolKey key, uint160 sqrtPriceX96) external payable returns (int24);
+        function initializePool(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks, uint160 sqrtPriceX96) external payable returns (int24);
 
         function modifyLiquidities(bytes unlockData, uint256 deadline) external payable;
 

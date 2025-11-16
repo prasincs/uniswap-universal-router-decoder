@@ -1,11 +1,11 @@
 /// Decoder for Uniswap Universal Router transactions
-use alloy_primitives::{Address, Bytes, FixedBytes, TxHash, U256};
+use alloy_primitives::{Bytes, TxHash, U256};
+use alloy_consensus::transaction::Transaction;
 use alloy_provider::Provider;
-use alloy_rpc_types::Transaction;
-use alloy_sol_types::{SolCall, SolInterface};
+use alloy_sol_types::SolCall;
 use serde_json::json;
 
-use crate::constants::*;
+use crate::constants::RouterCommands;
 use crate::enums::{RouterConstants, RouterFunction, V4Actions};
 use crate::error::{Result, RouterError};
 use crate::types::*;
@@ -18,7 +18,7 @@ pub struct Decoder<P> {
 
 impl<P> Decoder<P>
 where
-    P: Provider,
+    P: Provider + Clone,
 {
     /// Create a new decoder with a provider
     pub fn new(provider: P) -> Self {
@@ -42,7 +42,10 @@ where
             .map_err(|e| RouterError::Provider(e.to_string()))?
             .ok_or_else(|| RouterError::Provider("Transaction not found".to_string()))?;
 
-        let decoded_input = self.decode_function_input(&tx.input)?;
+        // Get the input data - field name depends on alloy version
+        // Transaction input - alloy type compatibility
+        let input_data = tx.inner.input().clone();
+        let decoded_input = self.decode_function_input(&input_data)?;
 
         Ok(DecodedTransaction {
             transaction: serde_json::to_value(&tx)?,
@@ -65,48 +68,73 @@ impl<P> Decoder<P> {
             ));
         }
 
+        // Function selectors for execute functions
+        const EXECUTE_WITH_DEADLINE: [u8; 4] = [0x24, 0x85, 0x6b, 0xc3];
+        const EXECUTE_NO_DEADLINE: [u8; 4] = [0x24, 0x85, 0x6b, 0xc5];
+
         let selector = &input[0..4];
 
-        // Check if it's execute(bytes,bytes[]) or execute(bytes,bytes[],uint256)
-        let has_deadline = selector == UniversalRouter::executeCall::SELECTOR;
-        let no_deadline = selector == &[0x24, 0x85, 0x6b, 0xc5]; // execute(bytes,bytes[])
-
-        if !has_deadline && !no_deadline {
+        let (commands, inputs_raw, deadline) = if selector == EXECUTE_WITH_DEADLINE {
+            // Manually decode: execute(bytes commands, bytes[] inputs, uint256 deadline)
+            self.decode_execute_with_deadline(input)?
+        } else if selector == EXECUTE_NO_DEADLINE {
+            // Manually decode: execute(bytes commands, bytes[] inputs)
+            self.decode_execute_no_deadline(input)?
+        } else {
             return Err(RouterError::AbiDecoding(format!(
                 "Unknown function selector: {}",
                 hex::encode(selector)
             )));
-        }
-
-        // Decode the function call
-        let (commands, inputs_raw, deadline) = if has_deadline {
-            let call = UniversalRouter::executeCall::abi_decode(input, true)
-                .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
-            (call.commands, call.inputs, Some(call.deadline))
-        } else {
-            // For the overload without deadline, we need to manually decode
-            let data = &input[4..];
-            let decoded = alloy_sol_types::sol_data::Bytes::abi_decode(data, true)
-                .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
-            // This is simplified - in practice we'd need to properly decode the bytes[] too
-            (Bytes::new(), vec![], None)
-        };
-
-        let function_name = if deadline.is_some() {
-            "execute"
-        } else {
-            "execute"
         };
 
         // Decode each command
         let decoded_commands = self.decode_commands(&commands, &inputs_raw)?;
 
         Ok(DecodedInput {
-            function_name: function_name.to_string(),
+            function_name: "execute".to_string(),
             commands,
             inputs: decoded_commands,
             deadline,
         })
+    }
+
+    /// Manually decode execute(bytes, bytes[], uint256)
+    fn decode_execute_with_deadline(&self, input: &Bytes) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
+        use alloy_sol_types::SolType;
+
+        // Skip 4-byte selector
+        let data = &input[4..];
+
+        // Decode as (bytes, bytes[], uint256)
+        type ExecuteParams = (
+            alloy_sol_types::sol_data::Bytes,
+            alloy_sol_types::sol_data::Array<alloy_sol_types::sol_data::Bytes>,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (commands, inputs, deadline) = ExecuteParams::abi_decode(data, true)
+            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute: {}", e)))?;
+
+        Ok((commands, inputs, Some(deadline)))
+    }
+
+    /// Manually decode execute(bytes, bytes[])
+    fn decode_execute_no_deadline(&self, input: &Bytes) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
+        use alloy_sol_types::SolType;
+
+        // Skip 4-byte selector
+        let data = &input[4..];
+
+        // Decode as (bytes, bytes[])
+        type ExecuteParams = (
+            alloy_sol_types::sol_data::Bytes,
+            alloy_sol_types::sol_data::Array<alloy_sol_types::sol_data::Bytes>,
+        );
+
+        let (commands, inputs) = ExecuteParams::abi_decode(data, true)
+            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute: {}", e)))?;
+
+        Ok((commands, inputs, None))
     }
 
     /// Decode commands and their inputs
@@ -127,7 +155,7 @@ impl<P> Decoder<P> {
             match RouterFunction::from_u8(command_type) {
                 Some(function) => {
                     let decoded_function =
-                        self.decode_command_input(function, &inputs[i], command_byte)?;
+                        self.decode_command_input(function, &inputs[i])?;
                     decoded.push(CommandInput::Decoded {
                         function: decoded_function,
                         revert_on_fail,
@@ -148,67 +176,32 @@ impl<P> Decoder<P> {
         &self,
         function: RouterFunction,
         input: &Bytes,
-        command_byte: u8,
     ) -> Result<DecodedFunction> {
         let name = function.name().to_string();
 
-        // For most commands, prepend the function selector
-        // For V4_POSITION_MANAGER_CALL, the input is already complete
-        let data_to_decode = if function == RouterFunction::V4PositionManagerCall {
-            input.clone()
-        } else {
-            // Prepend selector - we need to compute it based on the function
-            let selector = self.get_function_selector(function);
-            let mut full_data = Vec::with_capacity(4 + input.len());
-            full_data.extend_from_slice(&selector);
-            full_data.extend_from_slice(input);
-            Bytes::from(full_data)
-        };
-
         // Decode based on function type
         let params = match function {
-            RouterFunction::V2SwapExactIn => self.decode_v2_swap_exact_in(&data_to_decode)?,
-            RouterFunction::V2SwapExactOut => self.decode_v2_swap_exact_out(&data_to_decode)?,
-            RouterFunction::V3SwapExactIn => self.decode_v3_swap_exact_in(&data_to_decode)?,
-            RouterFunction::V3SwapExactOut => self.decode_v3_swap_exact_out(&data_to_decode)?,
-            RouterFunction::V4Swap => self.decode_v4_swap(&data_to_decode)?,
-            RouterFunction::V4InitializePool => self.decode_v4_initialize_pool(&data_to_decode)?,
+            RouterFunction::V2SwapExactIn => self.decode_v2_swap_exact_in(input)?,
+            RouterFunction::V2SwapExactOut => self.decode_v2_swap_exact_out(input)?,
+            RouterFunction::V3SwapExactIn => self.decode_v3_swap_exact_in(input)?,
+            RouterFunction::V3SwapExactOut => self.decode_v3_swap_exact_out(input)?,
+            RouterFunction::V4Swap => self.decode_v4_swap(input)?,
+            RouterFunction::V4InitializePool => self.decode_v4_initialize_pool(input)?,
             RouterFunction::V4PositionManagerCall => {
-                self.decode_v4_position_manager_call(&data_to_decode)?
+                self.decode_v4_position_manager_call(input)?
             }
-            RouterFunction::WrapEth => self.decode_wrap_eth(&data_to_decode)?,
-            RouterFunction::UnwrapWeth => self.decode_unwrap_weth(&data_to_decode)?,
-            RouterFunction::Sweep => self.decode_sweep(&data_to_decode)?,
-            RouterFunction::Transfer => self.decode_transfer(&data_to_decode)?,
-            RouterFunction::PayPortion => self.decode_pay_portion(&data_to_decode)?,
-            RouterFunction::Permit2Permit => self.decode_permit2_permit(&data_to_decode)?,
+            RouterFunction::WrapEth => self.decode_wrap_eth(input)?,
+            RouterFunction::UnwrapWeth => self.decode_unwrap_weth(input)?,
+            RouterFunction::Sweep => self.decode_sweep(input)?,
+            RouterFunction::Transfer => self.decode_transfer(input)?,
+            RouterFunction::PayPortion => self.decode_pay_portion(input)?,
+            RouterFunction::Permit2Permit => self.decode_permit2_permit(input)?,
             RouterFunction::Permit2TransferFrom => {
-                self.decode_permit2_transfer_from(&data_to_decode)?
+                self.decode_permit2_transfer_from(input)?
             }
         };
 
         Ok(DecodedFunction { name, params })
-    }
-
-    /// Get function selector for a given RouterFunction
-    fn get_function_selector(&self, function: RouterFunction) -> [u8; 4] {
-        use crate::constants::RouterCommands::*;
-        match function {
-            RouterFunction::V2SwapExactIn => V2_SWAP_EXACT_INCall::SELECTOR,
-            RouterFunction::V2SwapExactOut => V2_SWAP_EXACT_OUTCall::SELECTOR,
-            RouterFunction::V3SwapExactIn => V3_SWAP_EXACT_INCall::SELECTOR,
-            RouterFunction::V3SwapExactOut => V3_SWAP_EXACT_OUTCall::SELECTOR,
-            RouterFunction::WrapEth => WRAP_ETHCall::SELECTOR,
-            RouterFunction::UnwrapWeth => UNWRAP_WETHCall::SELECTOR,
-            RouterFunction::Sweep => SWEEPCall::SELECTOR,
-            RouterFunction::Transfer => TRANSFERCall::SELECTOR,
-            RouterFunction::PayPortion => PAY_PORTIONCall::SELECTOR,
-            RouterFunction::V4Swap => V4_SWAPCall::SELECTOR,
-            RouterFunction::V4InitializePool => V4_INITIALIZE_POOLCall::SELECTOR,
-            RouterFunction::Permit2Permit => PERMIT2_PERMITCall::SELECTOR,
-            RouterFunction::Permit2TransferFrom => PERMIT2_TRANSFER_FROMCall::SELECTOR,
-            RouterFunction::V4PositionManagerCall => V4_POSITION_MANAGER_CALLCall::SELECTOR,
-        }
     }
 
     // Decoding functions for each command type
@@ -283,13 +276,11 @@ impl<P> Decoder<P> {
         let call = V4_INITIALIZE_POOLCall::abi_decode(data, true)
             .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
         Ok(json!({
-            "poolKey": {
-                "currency0": call.currency0,
-                "currency1": call.currency1,
-                "fee": call.fee,
-                "tickSpacing": call.tickSpacing,
-                "hooks": call.hooks,
-            },
+            "currency0": call.currency0,
+            "currency1": call.currency1,
+            "fee": call.fee,
+            "tickSpacing": call.tickSpacing,
+            "hooks": call.hooks,
             "sqrtPriceX96": call.sqrtPriceX96,
         }))
     }
@@ -410,7 +401,7 @@ impl<P> Decoder<P> {
                 }
                 None => {
                     // Unknown action - return as hex
-                    decoded.push(json!(hex::encode(&params[i])));
+                    decoded.push(json!({"unknown": hex::encode(&params[i])}));
                 }
             }
         }
@@ -424,8 +415,7 @@ impl<P> Decoder<P> {
         action: V4Actions,
         param: &Bytes,
     ) -> Result<serde_json::Value> {
-        // Each action has its own parameter structure
-        // For now, return a placeholder - full implementation would decode each type
+        // Placeholder - full implementation would decode each action type
         Ok(json!({
             "action": action.name(),
             "raw_param": hex::encode(param),
@@ -434,8 +424,7 @@ impl<P> Decoder<P> {
 
     /// Decode V4 unlock data (actions + params)
     fn decode_v4_unlock_data(&self, data: &Bytes) -> Result<serde_json::Value> {
-        // Decode as (bytes actions, bytes[] params)
-        // This is simplified - full implementation would use proper ABI decoding
+        // Placeholder - full implementation would decode properly
         Ok(json!({
             "raw": hex::encode(data),
         }))
@@ -453,10 +442,7 @@ impl<P> Decoder<P> {
             return Ok(("Unknown error".to_string(), json!({})));
         }
 
-        let selector = &error_data[0..4];
-
-        // Try to decode against known errors
-        // This is a simplified version - full implementation would try all error types
+        // Placeholder - full implementation would decode error types
         Ok(("Unknown error".to_string(), json!({})))
     }
 }
