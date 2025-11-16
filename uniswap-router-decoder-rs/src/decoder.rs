@@ -193,175 +193,316 @@ impl<P> Decoder<P> {
 
     // Decoding functions for each command type
     fn decode_v2_swap_exact_in(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = V2_SWAP_EXACT_INCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address recipient, uint256 amountIn, uint256 amountOutMin, address[] path, bool payerIsUser)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Array<alloy_sol_types::sol_data::Address>,
+            alloy_sol_types::sol_data::Bool,
+        );
+
+        let (recipient, amount_in, amount_out_min, path, payer_is_user) =
+            <Params as SolType>::abi_decode_params(data, false)
+                .map_err(|e| RouterError::AbiDecoding(format!("V2_SWAP_EXACT_IN decode failed: {}", e)))?;
+
         Ok(json!({
-            "recipient": call.recipient,
-            "amountIn": call.amountIn,
-            "amountOutMin": call.amountOutMin,
-            "path": call.path,
-            "payerIsUser": call.payerIsUser,
+            "recipient": format!("{:?}", recipient),
+            "amountIn": amount_in.to_string(),
+            "amountOutMin": amount_out_min.to_string(),
+            "path": path.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>(),
+            "payerIsUser": payer_is_user,
         }))
     }
 
     fn decode_v2_swap_exact_out(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = V2_SWAP_EXACT_OUTCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address recipient, uint256 amountOut, uint256 amountInMax, address[] path, bool payerIsUser)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Array<alloy_sol_types::sol_data::Address>,
+            alloy_sol_types::sol_data::Bool,
+        );
+
+        let (recipient, amount_out, amount_in_max, path, payer_is_user) =
+            <Params as SolType>::abi_decode_params(data, false)
+                .map_err(|e| RouterError::AbiDecoding(format!("V2_SWAP_EXACT_OUT decode failed: {}", e)))?;
+
         Ok(json!({
-            "recipient": call.recipient,
-            "amountOut": call.amountOut,
-            "amountInMax": call.amountInMax,
-            "path": call.path,
-            "payerIsUser": call.payerIsUser,
+            "recipient": format!("{:?}", recipient),
+            "amountOut": amount_out.to_string(),
+            "amountInMax": amount_in_max.to_string(),
+            "path": path.iter().map(|a| format!("{:?}", a)).collect::<Vec<_>>(),
+            "payerIsUser": payer_is_user,
         }))
     }
 
     fn decode_v3_swap_exact_in(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = V3_SWAP_EXACT_INCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address recipient, uint256 amountIn, uint256 amountOutMin, bytes path, bool payerIsUser)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Bytes,
+            alloy_sol_types::sol_data::Bool,
+        );
+
+        let (recipient, amount_in, amount_out_min, path, payer_is_user) =
+            <Params as SolType>::abi_decode_params(data, false)
+                .map_err(|e| RouterError::AbiDecoding(format!("V3_SWAP_EXACT_IN decode failed: {}", e)))?;
+
         Ok(json!({
-            "recipient": call.recipient,
-            "amountIn": call.amountIn,
-            "amountOutMin": call.amountOutMin,
-            "path": call.path,
-            "payerIsUser": call.payerIsUser,
+            "recipient": format!("{:?}", recipient),
+            "amountIn": amount_in.to_string(),
+            "amountOutMin": amount_out_min.to_string(),
+            "path": format!("0x{}", hex::encode(&path)),
+            "payerIsUser": payer_is_user,
         }))
     }
 
     fn decode_v3_swap_exact_out(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = V3_SWAP_EXACT_OUTCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address recipient, uint256 amountOut, uint256 amountInMax, bytes path, bool payerIsUser)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Uint<256>,
+            alloy_sol_types::sol_data::Bytes,
+            alloy_sol_types::sol_data::Bool,
+        );
+
+        let (recipient, amount_out, amount_in_max, path, payer_is_user) =
+            <Params as SolType>::abi_decode_params(data, false)
+                .map_err(|e| RouterError::AbiDecoding(format!("V3_SWAP_EXACT_OUT decode failed: {}", e)))?;
+
         Ok(json!({
-            "recipient": call.recipient,
-            "amountOut": call.amountOut,
-            "amountInMax": call.amountInMax,
-            "path": call.path,
-            "payerIsUser": call.payerIsUser,
+            "recipient": format!("{:?}", recipient),
+            "amountOut": amount_out.to_string(),
+            "amountInMax": amount_in_max.to_string(),
+            "path": format!("0x{}", hex::encode(&path)),
+            "payerIsUser": payer_is_user,
         }))
     }
 
     fn decode_v4_swap(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = V4_SWAPCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (bytes actions, bytes[] params)
+        type Params = (
+            alloy_sol_types::sol_data::Bytes,
+            alloy_sol_types::sol_data::Array<alloy_sol_types::sol_data::Bytes>,
+        );
+
+        let (actions, params) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("V4_SWAP decode failed: {}", e)))?;
 
         // Decode V4 actions
-        let decoded_params = self.decode_v4_actions(&call.actions, &call.params)?;
+        let decoded_params = self.decode_v4_actions(&actions, &params)?;
 
         Ok(json!({
-            "actions": call.actions,
+            "actions": format!("0x{}", hex::encode(&actions)),
             "params": decoded_params,
         }))
     }
 
     fn decode_v4_initialize_pool(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = V4_INITIALIZE_POOLCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks, uint160 sqrtPriceX96)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<24>,
+            alloy_sol_types::sol_data::Int<24>,
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<160>,
+        );
+
+        let (currency0, currency1, fee, tick_spacing, hooks, sqrt_price_x96) =
+            <Params as SolType>::abi_decode_params(data, false)
+                .map_err(|e| RouterError::AbiDecoding(format!("V4_INITIALIZE_POOL decode failed: {}", e)))?;
+
         Ok(json!({
-            "currency0": call.currency0,
-            "currency1": call.currency1,
-            "fee": call.fee,
-            "tickSpacing": call.tickSpacing,
-            "hooks": call.hooks,
-            "sqrtPriceX96": call.sqrtPriceX96,
+            "currency0": format!("{:?}", currency0),
+            "currency1": format!("{:?}", currency1),
+            "fee": fee.to_string(),
+            "tickSpacing": tick_spacing.to_string(),
+            "hooks": format!("{:?}", hooks),
+            "sqrtPriceX96": sqrt_price_x96.to_string(),
         }))
     }
 
     fn decode_v4_position_manager_call(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = V4_POSITION_MANAGER_CALLCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (bytes unlockData, uint256 deadline)
+        type Params = (
+            alloy_sol_types::sol_data::Bytes,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (unlock_data_bytes, deadline) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("V4_POSITION_MANAGER_CALL decode failed: {}", e)))?;
 
         // The unlockData needs to be further decoded
-        let unlock_data = self.decode_v4_unlock_data(&call.unlockData)?;
+        let unlock_data = self.decode_v4_unlock_data(&unlock_data_bytes)?;
 
         Ok(json!({
             "unlockData": unlock_data,
-            "deadline": call.deadline,
+            "deadline": deadline.to_string(),
         }))
     }
 
     fn decode_wrap_eth(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = WRAP_ETHCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address recipient, uint256 amountMin)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (recipient, amount_min) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("WRAP_ETH decode failed: {}", e)))?;
+
         Ok(json!({
-            "recipient": call.recipient,
-            "amountMin": call.amountMin,
+            "recipient": format!("{:?}", recipient),
+            "amountMin": amount_min.to_string(),
         }))
     }
 
     fn decode_unwrap_weth(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = UNWRAP_WETHCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address recipient, uint256 amountMin)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (recipient, amount_min) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("UNWRAP_WETH decode failed: {}", e)))?;
+
         Ok(json!({
-            "recipient": call.recipient,
-            "amountMin": call.amountMin,
+            "recipient": format!("{:?}", recipient),
+            "amountMin": amount_min.to_string(),
         }))
     }
 
     fn decode_sweep(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = SWEEPCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address token, address recipient, uint256 amountMin)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (token, recipient, amount_min) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("SWEEP decode failed: {}", e)))?;
+
         Ok(json!({
-            "token": call.token,
-            "recipient": call.recipient,
-            "amountMin": call.amountMin,
+            "token": format!("{:?}", token),
+            "recipient": format!("{:?}", recipient),
+            "amountMin": amount_min.to_string(),
         }))
     }
 
     fn decode_transfer(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = TRANSFERCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address token, address recipient, uint256 value)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (token, recipient, value) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("TRANSFER decode failed: {}", e)))?;
+
         Ok(json!({
-            "token": call.token,
-            "recipient": call.recipient,
-            "value": call.value,
+            "token": format!("{:?}", token),
+            "recipient": format!("{:?}", recipient),
+            "value": value.to_string(),
         }))
     }
 
     fn decode_pay_portion(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = PAY_PORTIONCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address token, address recipient, uint256 bips)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (token, recipient, bips) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("PAY_PORTION decode failed: {}", e)))?;
+
         Ok(json!({
-            "token": call.token,
-            "recipient": call.recipient,
-            "bips": call.bips,
+            "token": format!("{:?}", token),
+            "recipient": format!("{:?}", recipient),
+            "bips": bips.to_string(),
         }))
     }
 
     fn decode_permit2_permit(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = PERMIT2_PERMITCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address token, uint160 amount, uint48 expiration, uint48 nonce, address spender, uint256 sigDeadline, bytes signature)
+        type Params = (
+            alloy_sol_types::sol_data::Address,      // token
+            alloy_sol_types::sol_data::Uint<160>,    // amount
+            alloy_sol_types::sol_data::Uint<48>,     // expiration
+            alloy_sol_types::sol_data::Uint<48>,     // nonce
+            alloy_sol_types::sol_data::Address,      // spender
+            alloy_sol_types::sol_data::Uint<256>,    // sigDeadline
+            alloy_sol_types::sol_data::Bytes,        // signature
+        );
+
+        let (token, amount, expiration, nonce, spender, sig_deadline, signature) =
+            <Params as SolType>::abi_decode_params(data, false)
+                .map_err(|e| RouterError::AbiDecoding(format!("PERMIT2_PERMIT decode failed: {}", e)))?;
+
         Ok(json!({
-            "token": call.token,
-            "amount": call.amount,
-            "expiration": call.expiration,
-            "nonce": call.nonce,
-            "spender": call.spender,
-            "sigDeadline": call.sigDeadline,
-            "signature": call.signature,
+            "token": format!("{:?}", token),
+            "amount": amount.to_string(),
+            "expiration": expiration.to_string(),
+            "nonce": nonce.to_string(),
+            "spender": format!("{:?}", spender),
+            "sigDeadline": sig_deadline.to_string(),
+            "signature": format!("0x{}", hex::encode(&signature)),
         }))
     }
 
     fn decode_permit2_transfer_from(&self, data: &Bytes) -> Result<serde_json::Value> {
-        use crate::constants::RouterCommands::*;
-        let call = PERMIT2_TRANSFER_FROMCall::abi_decode(data, true)
-            .map_err(|e| RouterError::AbiDecoding(e.to_string()))?;
+        use alloy_sol_types::SolType;
+
+        // Decode parameters: (address token, address recipient, uint256 amount)
+        type Params = (
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Address,
+            alloy_sol_types::sol_data::Uint<256>,
+        );
+
+        let (token, recipient, amount) = <Params as SolType>::abi_decode_params(data, false)
+            .map_err(|e| RouterError::AbiDecoding(format!("PERMIT2_TRANSFER_FROM decode failed: {}", e)))?;
+
         Ok(json!({
-            "token": call.token,
-            "recipient": call.recipient,
-            "amount": call.amount,
+            "token": format!("{:?}", token),
+            "recipient": format!("{:?}", recipient),
+            "amount": amount.to_string(),
         }))
     }
 
