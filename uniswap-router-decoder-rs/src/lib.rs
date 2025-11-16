@@ -19,26 +19,21 @@ supporting V2, V3, and V4 protocols.
 ## Example
 
 ```rust,no_run
-use uniswap_router_decoder::{Decoder, Result};
-use alloy_primitives::TxHash;
-use alloy_provider::{ProviderBuilder, Provider};
+use uniswap_router_decoder_rs::{Decoder, Result};
+use alloy_primitives::Bytes;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Create provider
-    let provider = ProviderBuilder::new()
-        .on_http("https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY".parse().unwrap());
+fn main() -> Result<()> {
+    // Create offline decoder (no RPC provider needed)
+    let decoder = Decoder::<()>::new_offline();
 
-    // Create decoder
-    let decoder = Decoder::new(provider);
+    // Decode a transaction input
+    let input_hex = "0x3593564c000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000065f7e64700000000000000000000000000000000000000000000000000000000000000020b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000";
 
-    // Decode a transaction
-    let tx_hash: TxHash = "0x52e63b75f41a352ad9182f9e0f923c8557064c3b1047d1778c1ea5b11b979dd9"
-        .parse()
-        .unwrap();
+    let input_bytes = Bytes::from(hex::decode(&input_hex[2..]).unwrap());
+    let decoded = decoder.decode_function_input(&input_bytes)?;
 
-    let decoded = decoder.decode_transaction(tx_hash).await?;
-    println!("{:#?}", decoded);
+    println!("Function: {}", decoded.function_name);
+    println!("Commands: {} commands", decoded.inputs.len());
 
     Ok(())
 }
@@ -47,20 +42,28 @@ async fn main() -> Result<()> {
 
 #![warn(missing_docs)]
 
+/// Constants and ABI definitions for Uniswap Universal Router
 pub mod constants;
+/// Main decoder implementation for Universal Router transactions
 pub mod decoder;
+/// Router function and action enums
 pub mod enums;
+/// Error types and result definitions
 pub mod error;
+/// Type definitions for decoded data structures
 pub mod types;
+/// V3 path encoding/decoding utilities
 pub mod v3_path;
 
 // Re-export main types
-pub use decoder::Decoder;
-pub use enums::{RouterFunction, V4Actions, RouterConstants, V4Constants, FunctionRecipient, TransactionSpeed};
-pub use error::{Result, RouterError};
-pub use types::*;  // This includes CommandInput
 pub use constants::Addresses;
-pub use v3_path::{decode_v3_path, encode_v3_path, extract_tokens, extract_fees};
+pub use decoder::Decoder;
+pub use enums::{
+    FunctionRecipient, RouterConstants, RouterFunction, TransactionSpeed, V4Actions, V4Constants,
+};
+pub use error::{Result, RouterError};
+pub use types::*; // This includes CommandInput
+pub use v3_path::{decode_v3_path, encode_v3_path, extract_fees, extract_tokens};
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -6,10 +6,10 @@
 //!
 //! Output: JSON formatted decoded transaction matching Python decoder output
 
-use uniswap_router_decoder_rs::{Decoder, Result, RouterError, CommandInput};
 use alloy_primitives::Bytes;
 use serde_json::json;
 use std::env;
+use uniswap_router_decoder_rs::{CommandInput, Decoder, Result, RouterError};
 
 fn main() {
     let exit_code = match run() {
@@ -30,7 +30,9 @@ fn run() -> Result<()> {
         eprintln!();
         eprintln!("Example:");
         eprintln!("  {} 0x24856bc3000000...", args[0]);
-        return Err(RouterError::AbiDecoding("No input hex provided".to_string()));
+        return Err(RouterError::AbiDecoding(
+            "No input hex provided".to_string(),
+        ));
     }
 
     let input_hex = &args[1];
@@ -40,7 +42,10 @@ fn run() -> Result<()> {
 
     // Debug: print input info
     eprintln!("Input length: {} bytes", input_bytes.len());
-    eprintln!("Selector: 0x{}", hex::encode(&input_bytes[0..4.min(input_bytes.len())]));
+    eprintln!(
+        "Selector: 0x{}",
+        hex::encode(&input_bytes[0..4.min(input_bytes.len())])
+    );
 
     // Create offline decoder (no RPC needed for input-only decoding)
     let decoder = Decoder::<()>::new_offline();
@@ -49,9 +54,15 @@ fn run() -> Result<()> {
     let decoded = decoder.decode_function_input(&input_bytes)?;
 
     // Format output to match Python decoder
-    let commands_detail: Vec<serde_json::Value> = decoded.inputs.iter().enumerate().map(|(i, cmd_input)| {
-        match cmd_input {
-            CommandInput::Decoded { function, revert_on_fail } => {
+    let commands_detail: Vec<serde_json::Value> = decoded
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(i, cmd_input)| match cmd_input {
+            CommandInput::Decoded {
+                function,
+                revert_on_fail,
+            } => {
                 json!({
                     "index": i,
                     "function": function.name,
@@ -66,8 +77,8 @@ fn run() -> Result<()> {
                     "raw": hex
                 })
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     let output = json!({
         "decoder": "rust",
@@ -104,7 +115,7 @@ fn serialize_params(params: &serde_json::Value) -> serde_json::Value {
             }
             serde_json::Value::Object(result)
         }
-        _ => params.clone()
+        _ => params.clone(),
     }
 }
 
@@ -121,6 +132,6 @@ fn serialize_value(value: &serde_json::Value) -> serde_json::Value {
             serde_json::Value::Object(result)
         }
         // Keep primitives as-is
-        _ => value.clone()
+        _ => value.clone(),
     }
 }

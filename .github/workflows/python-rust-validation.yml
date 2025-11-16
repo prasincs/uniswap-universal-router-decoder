@@ -1,0 +1,114 @@
+name: Python-Rust Validation
+
+on:
+  push:
+    branches: [ main, master, claude/** ]
+    paths:
+      - '.github/workflows/python-rust-validation.yml'
+      - 'uniswap-router-decoder-rs/**'
+      - 'test_harness/**'
+      - 'uniswap_universal_router_decoder/**'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - '.github/workflows/python-rust-validation.yml'
+      - 'uniswap-router-decoder-rs/**'
+      - 'test_harness/**'
+      - 'uniswap_universal_router_decoder/**'
+  schedule:
+    # Run weekly on Monday at 9:00 UTC to catch any upstream changes
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  validate:
+    name: Validate Rust vs Python Decoder
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uniswap-universal-router-decoder
+          pip install requests
+
+      - name: Build Rust decoder
+        run: |
+          cd uniswap-router-decoder-rs
+          cargo build --release --bin decode
+
+      - name: Run side-by-side comparison
+        run: |
+          python3 test_harness/test_python_vs_rust.py
+
+      - name: Fetch mainnet samples (if not cached)
+        id: fetch-samples
+        continue-on-error: true
+        run: |
+          # Only fetch if samples don't exist
+          if [ ! -f test_outputs/mainnet_samples.json ]; then
+            echo "Fetching mainnet samples..."
+            python3 test_harness/fetch_mainnet_samples.py
+          else
+            echo "Using existing samples"
+          fi
+
+      - name: Validate all samples
+        if: steps.fetch-samples.outcome == 'success' || hashFiles('test_outputs/mainnet_samples.json') != ''
+        run: |
+          if [ -f test_outputs/mainnet_samples.json ]; then
+            python3 test_harness/validate_all_samples.py
+          else
+            echo "No samples found, skipping validation"
+          fi
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: test_outputs/validation_report.json
+          if-no-files-found: ignore
+
+      - name: Check validation results
+        if: steps.fetch-samples.outcome == 'success' || hashFiles('test_outputs/mainnet_samples.json') != ''
+        run: |
+          if [ -f test_outputs/validation_report.json ]; then
+            # Extract pass/fail counts from JSON
+            python3 -c "
+import json
+import sys
+
+with open('test_outputs/validation_report.json') as f:
+    report = json.load(f)
+
+passed = report['summary']['passed']
+failed = report['summary']['failed']
+errors = report['summary']['errors']
+total = report['summary']['total']
+
+print(f'Validation Results:')
+print(f'  Passed: {passed}/{total}')
+print(f'  Failed: {failed}/{total}')
+print(f'  Errors: {errors}/{total}')
+
+if failed > 0 or errors > 0:
+    print('❌ Validation failed!')
+    sys.exit(1)
+else:
+    print('✅ All validations passed!')
+            "
+          fi

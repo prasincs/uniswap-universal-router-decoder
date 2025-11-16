@@ -25,7 +25,7 @@ pub fn decode_v3_path(path: &[u8], is_exact_out: bool) -> Result<V3Path> {
     // V3 path format: token (20 bytes) + [fee (3 bytes) + token (20 bytes)]*
     // Minimum length is 20 bytes (single token)
     // Each additional hop adds 23 bytes (3 byte fee + 20 byte token)
-    if (path.len() - 20) % 23 != 0 {
+    if !(path.len() - 20).is_multiple_of(23) {
         return Err(RouterError::InvalidPath(format!(
             "Invalid path length: {}. Must be 20 + n*23 bytes",
             path.len()
@@ -163,7 +163,6 @@ pub fn extract_fees(path: &V3Path) -> Vec<u32> {
 mod tests {
     use super::*;
     use alloy_primitives::address;
-    use hex;
 
     #[test]
     fn test_decode_simple_path() {
@@ -307,7 +306,10 @@ mod tests {
     #[test]
     fn test_invalid_path_structure() {
         // Start with fee instead of token
-        let path = vec![V3PathElement::Fee(3000), V3PathElement::Token(Address::ZERO)];
+        let path = vec![
+            V3PathElement::Fee(3000),
+            V3PathElement::Token(Address::ZERO),
+        ];
         let result = encode_v3_path(&path, false);
         assert!(result.is_err());
     }

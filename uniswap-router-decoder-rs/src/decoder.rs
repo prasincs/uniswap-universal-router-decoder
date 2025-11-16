@@ -1,11 +1,10 @@
+use alloy_consensus::transaction::Transaction;
 /// Decoder for Uniswap Universal Router transactions
 use alloy_primitives::{Bytes, TxHash, U256};
-use alloy_consensus::transaction::Transaction;
 use alloy_provider::Provider;
-use alloy_sol_types::{SolCall, sol};
+use alloy_sol_types::{sol, SolCall};
 use serde_json::json;
 
-use crate::constants::RouterCommands;
 use crate::enums::{RouterConstants, RouterFunction, V4Actions};
 use crate::error::{Result, RouterError};
 use crate::types::*;
@@ -107,19 +106,30 @@ impl<P> Decoder<P> {
     }
 
     /// Manually decode execute(bytes, bytes[], uint256)
-    fn decode_execute_with_deadline(&self, input: &Bytes) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
+    fn decode_execute_with_deadline(
+        &self,
+        input: &Bytes,
+    ) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
         // Use the generated sol! type
-        let call = execute_1Call::abi_decode(input, false)
-            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute(bytes,bytes[],uint256): {}", e)))?;
+        let call = execute_1Call::abi_decode(input, false).map_err(|e| {
+            RouterError::AbiDecoding(format!(
+                "Failed to decode execute(bytes,bytes[],uint256): {}",
+                e
+            ))
+        })?;
 
         Ok((call.commands, call.inputs, Some(call.deadline)))
     }
 
     /// Manually decode execute(bytes, bytes[])
-    fn decode_execute_no_deadline(&self, input: &Bytes) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
+    fn decode_execute_no_deadline(
+        &self,
+        input: &Bytes,
+    ) -> Result<(Bytes, Vec<Bytes>, Option<U256>)> {
         // Use the generated sol! type
-        let call = execute_0Call::abi_decode(input, false)
-            .map_err(|e| RouterError::AbiDecoding(format!("Failed to decode execute(bytes,bytes[]): {}", e)))?;
+        let call = execute_0Call::abi_decode(input, false).map_err(|e| {
+            RouterError::AbiDecoding(format!("Failed to decode execute(bytes,bytes[]): {}", e))
+        })?;
 
         Ok((call.commands, call.inputs, None))
     }
@@ -133,7 +143,7 @@ impl<P> Decoder<P> {
             });
         }
 
-        let mut decoded = Vec::new();
+        let mut decoded = Vec::with_capacity(commands.len());
 
         for (i, &command_byte) in commands.iter().enumerate() {
             let command_type = command_byte & RouterConstants::COMMAND_TYPE_MASK;
@@ -141,8 +151,7 @@ impl<P> Decoder<P> {
 
             match RouterFunction::from_u8(command_type) {
                 Some(function) => {
-                    let decoded_function =
-                        self.decode_command_input(function, &inputs[i])?;
+                    let decoded_function = self.decode_command_input(function, &inputs[i])?;
                     decoded.push(CommandInput::Decoded {
                         function: decoded_function,
                         revert_on_fail,
@@ -174,18 +183,14 @@ impl<P> Decoder<P> {
             RouterFunction::V3SwapExactOut => self.decode_v3_swap_exact_out(input)?,
             RouterFunction::V4Swap => self.decode_v4_swap(input)?,
             RouterFunction::V4InitializePool => self.decode_v4_initialize_pool(input)?,
-            RouterFunction::V4PositionManagerCall => {
-                self.decode_v4_position_manager_call(input)?
-            }
+            RouterFunction::V4PositionManagerCall => self.decode_v4_position_manager_call(input)?,
             RouterFunction::WrapEth => self.decode_wrap_eth(input)?,
             RouterFunction::UnwrapWeth => self.decode_unwrap_weth(input)?,
             RouterFunction::Sweep => self.decode_sweep(input)?,
             RouterFunction::Transfer => self.decode_transfer(input)?,
             RouterFunction::PayPortion => self.decode_pay_portion(input)?,
             RouterFunction::Permit2Permit => self.decode_permit2_permit(input)?,
-            RouterFunction::Permit2TransferFrom => {
-                self.decode_permit2_transfer_from(input)?
-            }
+            RouterFunction::Permit2TransferFrom => self.decode_permit2_transfer_from(input)?,
         };
 
         Ok(DecodedFunction { name, params })
@@ -205,8 +210,9 @@ impl<P> Decoder<P> {
         );
 
         let (recipient, amount_in, amount_out_min, path, payer_is_user) =
-            <Params as SolType>::abi_decode_params(data, false)
-                .map_err(|e| RouterError::AbiDecoding(format!("V2_SWAP_EXACT_IN decode failed: {}", e)))?;
+            <Params as SolType>::abi_decode_params(data, false).map_err(|e| {
+                RouterError::AbiDecoding(format!("V2_SWAP_EXACT_IN decode failed: {}", e))
+            })?;
 
         Ok(json!({
             "recipient": format!("{:?}", recipient),
@@ -230,8 +236,9 @@ impl<P> Decoder<P> {
         );
 
         let (recipient, amount_out, amount_in_max, path, payer_is_user) =
-            <Params as SolType>::abi_decode_params(data, false)
-                .map_err(|e| RouterError::AbiDecoding(format!("V2_SWAP_EXACT_OUT decode failed: {}", e)))?;
+            <Params as SolType>::abi_decode_params(data, false).map_err(|e| {
+                RouterError::AbiDecoding(format!("V2_SWAP_EXACT_OUT decode failed: {}", e))
+            })?;
 
         Ok(json!({
             "recipient": format!("{:?}", recipient),
@@ -255,8 +262,9 @@ impl<P> Decoder<P> {
         );
 
         let (recipient, amount_in, amount_out_min, path, payer_is_user) =
-            <Params as SolType>::abi_decode_params(data, false)
-                .map_err(|e| RouterError::AbiDecoding(format!("V3_SWAP_EXACT_IN decode failed: {}", e)))?;
+            <Params as SolType>::abi_decode_params(data, false).map_err(|e| {
+                RouterError::AbiDecoding(format!("V3_SWAP_EXACT_IN decode failed: {}", e))
+            })?;
 
         Ok(json!({
             "recipient": format!("{:?}", recipient),
@@ -280,8 +288,9 @@ impl<P> Decoder<P> {
         );
 
         let (recipient, amount_out, amount_in_max, path, payer_is_user) =
-            <Params as SolType>::abi_decode_params(data, false)
-                .map_err(|e| RouterError::AbiDecoding(format!("V3_SWAP_EXACT_OUT decode failed: {}", e)))?;
+            <Params as SolType>::abi_decode_params(data, false).map_err(|e| {
+                RouterError::AbiDecoding(format!("V3_SWAP_EXACT_OUT decode failed: {}", e))
+            })?;
 
         Ok(json!({
             "recipient": format!("{:?}", recipient),
@@ -327,8 +336,9 @@ impl<P> Decoder<P> {
         );
 
         let (currency0, currency1, fee, tick_spacing, hooks, sqrt_price_x96) =
-            <Params as SolType>::abi_decode_params(data, false)
-                .map_err(|e| RouterError::AbiDecoding(format!("V4_INITIALIZE_POOL decode failed: {}", e)))?;
+            <Params as SolType>::abi_decode_params(data, false).map_err(|e| {
+                RouterError::AbiDecoding(format!("V4_INITIALIZE_POOL decode failed: {}", e))
+            })?;
 
         Ok(json!({
             "currency0": format!("{:?}", currency0),
@@ -350,7 +360,9 @@ impl<P> Decoder<P> {
         );
 
         let (unlock_data_bytes, deadline) = <Params as SolType>::abi_decode_params(data, false)
-            .map_err(|e| RouterError::AbiDecoding(format!("V4_POSITION_MANAGER_CALL decode failed: {}", e)))?;
+            .map_err(|e| {
+                RouterError::AbiDecoding(format!("V4_POSITION_MANAGER_CALL decode failed: {}", e))
+            })?;
 
         // The unlockData needs to be further decoded
         let unlock_data = self.decode_v4_unlock_data(&unlock_data_bytes)?;
@@ -462,18 +474,19 @@ impl<P> Decoder<P> {
 
         // Decode parameters: (address token, uint160 amount, uint48 expiration, uint48 nonce, address spender, uint256 sigDeadline, bytes signature)
         type Params = (
-            alloy_sol_types::sol_data::Address,      // token
-            alloy_sol_types::sol_data::Uint<160>,    // amount
-            alloy_sol_types::sol_data::Uint<48>,     // expiration
-            alloy_sol_types::sol_data::Uint<48>,     // nonce
-            alloy_sol_types::sol_data::Address,      // spender
-            alloy_sol_types::sol_data::Uint<256>,    // sigDeadline
-            alloy_sol_types::sol_data::Bytes,        // signature
+            alloy_sol_types::sol_data::Address,   // token
+            alloy_sol_types::sol_data::Uint<160>, // amount
+            alloy_sol_types::sol_data::Uint<48>,  // expiration
+            alloy_sol_types::sol_data::Uint<48>,  // nonce
+            alloy_sol_types::sol_data::Address,   // spender
+            alloy_sol_types::sol_data::Uint<256>, // sigDeadline
+            alloy_sol_types::sol_data::Bytes,     // signature
         );
 
         let (token, amount, expiration, nonce, spender, sig_deadline, signature) =
-            <Params as SolType>::abi_decode_params(data, false)
-                .map_err(|e| RouterError::AbiDecoding(format!("PERMIT2_PERMIT decode failed: {}", e)))?;
+            <Params as SolType>::abi_decode_params(data, false).map_err(|e| {
+                RouterError::AbiDecoding(format!("PERMIT2_PERMIT decode failed: {}", e))
+            })?;
 
         Ok(json!({
             "token": format!("{:?}", token),
@@ -497,7 +510,9 @@ impl<P> Decoder<P> {
         );
 
         let (token, recipient, amount) = <Params as SolType>::abi_decode_params(data, false)
-            .map_err(|e| RouterError::AbiDecoding(format!("PERMIT2_TRANSFER_FROM decode failed: {}", e)))?;
+            .map_err(|e| {
+                RouterError::AbiDecoding(format!("PERMIT2_TRANSFER_FROM decode failed: {}", e))
+            })?;
 
         Ok(json!({
             "token": format!("{:?}", token),
@@ -519,7 +534,7 @@ impl<P> Decoder<P> {
             });
         }
 
-        let mut decoded = Vec::new();
+        let mut decoded = Vec::with_capacity(actions.len());
 
         for (i, &action_byte) in actions.iter().enumerate() {
             match V4Actions::from_u8(action_byte) {
@@ -581,7 +596,7 @@ mod tests {
 
     #[test]
     fn test_decoder_creation() {
-        let decoder: Decoder<()> = Decoder::new_offline();
+        let _decoder: Decoder<()> = Decoder::new_offline();
         // Test that decoder can be created without provider
     }
 
