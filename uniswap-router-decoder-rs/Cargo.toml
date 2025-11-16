@@ -35,3 +35,14 @@ path = "src/bin/decode.rs"
 tokio-test = "0.4"
 criterion = "0.5"
 proptest = "1.0"
+
+# Revm for EVM simulation and fork testing
+revm = { version = "14", features = ["std", "serde"] }
+revm-primitives = "9"
+
+# Alloy test utilities for integration testing
+alloy-rpc-client = "0.6"
+alloy-node-bindings = "0.6"  # For anvil integration
+
+# Additional test utilities
+reqwest = "0.11"  # For fetching mainnet data
