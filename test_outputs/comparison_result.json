@@ -1,0 +1,116 @@
+{
+  "test_transaction": "0x02f904cf0181b78477359400847c17b3e383045307943fc91a3afd70395cd496c647d5a6cc9d4b2b7fad80b904a424856b...",
+  "input_hex": "0x24856bc300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000...",
+  "python": {
+    "decoder": "python",
+    "success": true,
+    "function": "execute",
+    "commands": "0x0a08060c",
+    "num_commands": 4,
+    "deadline": "None",
+    "commands_detail": [
+      {
+        "index": 0,
+        "function": "PERMIT2_PERMIT",
+        "params": {
+          "struct": "{'details': {'token': '0x72b658Bd674f9c2B4954682f517c17D14476e417', 'amount': 1461501637330902918203684832716283019655932542975, 'expiration': 1765824281, 'nonce': 0}, 'spender': '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD', 'sigDeadline': 1763234081}",
+          "data": "0x2eb0933411b0970637515316fb50511bea7908d3f85808074ceed3bf881562bc06da5178104470e54fb5be96075169b30799c30f30975317ae14113ffdb84bc81c"
+        },
+        "revert_on_fail": true
+      },
+      {
+        "index": 1,
+        "function": "V2_SWAP_EXACT_IN",
+        "params": {
+          "recipient": "0x0000000000000000000000000000000000000002",
+          "amountIn": "46525180921656252477",
+          "amountOutMin": "2761011377502728",
+          "path": [
+            "0x72b658Bd674f9c2B4954682f517c17D14476e417",
+            "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+          ],
+          "payerIsSender": "True"
+        },
+        "revert_on_fail": true
+      },
+      {
+        "index": 2,
+        "function": "PAY_PORTION",
+        "params": {
+          "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "recipient": "0x000000fee13a103A10D593b9AE06b3e05F2E7E1c",
+          "bips": "25"
+        },
+        "revert_on_fail": true
+      },
+      {
+        "index": 3,
+        "function": "UNWRAP_WETH",
+        "params": {
+          "recipient": "0x8419e7Eda8577Dfc49591a49CAd965a0Fc6716cF",
+          "amountMin": "2754108849058971"
+        },
+        "revert_on_fail": true
+      }
+    ]
+  },
+  "rust": {
+    "commands": "0x0a08060c",
+    "commands_detail": [
+      {
+        "function": "PERMIT2_PERMIT",
+        "index": 0,
+        "params": {
+          "amount": "1461501637330902918203684832716283019655932542975",
+          "expiration": "1765824281",
+          "nonce": "0",
+          "sigDeadline": "1763234081",
+          "signature": "0x2eb0933411b0970637515316fb50511bea7908d3f85808074ceed3bf881562bc06da5178104470e54fb5be96075169b30799c30f30975317ae14113ffdb84bc81c",
+          "spender": "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad",
+          "token": "0x72b658bd674f9c2b4954682f517c17d14476e417"
+        },
+        "revert_on_fail": true
+      },
+      {
+        "function": "V2_SWAP_EXACT_IN",
+        "index": 1,
+        "params": {
+          "amountIn": "46525180921656252477",
+          "amountOutMin": "2761011377502728",
+          "path": [
+            "0x72b658bd674f9c2b4954682f517c17d14476e417",
+            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+          ],
+          "payerIsUser": true,
+          "recipient": "0x0000000000000000000000000000000000000002"
+        },
+        "revert_on_fail": true
+      },
+      {
+        "function": "PAY_PORTION",
+        "index": 2,
+        "params": {
+          "bips": "25",
+          "recipient": "0x000000fee13a103a10d593b9ae06b3e05f2e7e1c",
+          "token": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+        },
+        "revert_on_fail": true
+      },
+      {
+        "function": "UNWRAP_WETH",
+        "index": 3,
+        "params": {
+          "amountMin": "2754108849058971",
+          "recipient": "0x8419e7eda8577dfc49591a49cad965a0fc6716cf"
+        },
+        "revert_on_fail": true
+      }
+    ],
+    "deadline": "None",
+    "decoder": "rust",
+    "function": "execute",
+    "num_commands": 4,
+    "success": true
+  },
+  "comparison_passed": true
+}

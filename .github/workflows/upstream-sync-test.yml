@@ -1,0 +1,174 @@
+name: Upstream Sync Test
+
+on:
+  schedule:
+    # Run weekly on Monday at 10:00 UTC
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: 'Upstream branch/tag to test against'
+        required: false
+        default: 'master'
+
+env:
+  UPSTREAM_REPO: 'Elnaril/uniswap-universal-router-decoder'
+
+jobs:
+  test-against-upstream:
+    name: Test Rust Decoder Against Upstream Python
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current fork
+        uses: actions/checkout@v4
+        with:
+          path: fork
+
+      - name: Checkout upstream repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.UPSTREAM_REPO }}
+          ref: ${{ github.event.inputs.upstream_ref || 'master' }}
+          path: upstream
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install upstream Python decoder
+        run: |
+          cd upstream
+          python -m pip install --upgrade pip
+          pip install -e .
+          cd ..
+
+      - name: Install test dependencies
+        run: |
+          pip install requests
+
+      - name: Build Rust decoder from fork
+        run: |
+          cd fork/uniswap-router-decoder-rs
+          cargo build --release --bin decode
+
+      - name: Copy test harness to test directory
+        run: |
+          mkdir -p test_env
+          cp -r fork/test_harness test_env/
+          cp -r fork/uniswap-router-decoder-rs test_env/
+
+      - name: Run comparison tests
+        run: |
+          cd test_env
+          python3 test_harness/test_python_vs_rust.py
+
+      - name: Fetch fresh mainnet samples
+        id: fetch-samples
+        continue-on-error: true
+        run: |
+          cd test_env
+          python3 test_harness/fetch_mainnet_samples.py
+
+      - name: Validate against upstream
+        if: steps.fetch-samples.outcome == 'success'
+        run: |
+          cd test_env
+          python3 test_harness/validate_all_samples.py
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-validation-results
+          path: |
+            test_env/test_outputs/*.json
+            test_env/test_outputs/*.txt
+          if-no-files-found: ignore
+
+      - name: Check for breaking changes
+        if: always()
+        run: |
+          cd test_env
+          if [ -f test_outputs/validation_report.json ]; then
+            python3 << 'EOF'
+import json
+import sys
+
+with open('test_outputs/validation_report.json') as f:
+    report = json.load(f)
+
+passed = report['summary']['passed']
+failed = report['summary']['failed']
+errors = report['summary']['errors']
+total = report['summary']['total']
+
+print(f'📊 Upstream Compatibility Test Results:')
+print(f'   ✅ Passed: {passed}/{total} ({100*passed/total:.1f}%)')
+print(f'   ❌ Failed: {failed}/{total} ({100*failed/total:.1f}%)')
+print(f'   ⚠️  Errors: {errors}/{total} ({100*errors/total:.1f}%)')
+
+if failed > 0:
+    print('\n⚠️  WARNING: Some tests failed against upstream.')
+    print('   This may indicate breaking changes in the upstream Python library.')
+    print('   Please review the validation report for details.')
+    # Don't fail the build, just warn
+    sys.exit(0)
+elif errors > 0:
+    print('\n⚠️  WARNING: Some tests had errors against upstream.')
+    sys.exit(0)
+else:
+    print('\n✅ All tests passed! Rust decoder is compatible with upstream.')
+    sys.exit(0)
+EOF
+          else
+            echo "⚠️  No validation report found. Test may have failed earlier."
+            exit 0
+          fi
+
+      - name: Create issue on breaking changes
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '⚠️ Upstream Compatibility Issue Detected';
+            const body = `
+## Upstream Compatibility Test Failed
+
+The Rust decoder failed compatibility tests against the upstream Python decoder.
+
+**Upstream Repository:** ${process.env.UPSTREAM_REPO}
+**Test Date:** ${new Date().toISOString()}
+**Workflow Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+
+### Next Steps:
+1. Review the validation report in the workflow artifacts
+2. Check for changes in the upstream Python library
+3. Update the Rust decoder if necessary
+4. Re-run tests to verify fixes
+
+**Note:** This issue was automatically created by the upstream sync workflow.
+            `;
+
+            // Check if an issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['upstream-sync', 'automated']
+            });
+
+            if (issues.data.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['upstream-sync', 'automated', 'bug']
+              });
+            } else {
+              console.log('An upstream sync issue already exists. Skipping issue creation.');
+            }
